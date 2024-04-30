@@ -1,0 +1,98 @@
+---
+title: "NYPD Shooting Incidents"
+author: "Adam Krull"
+date: "2024-04-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(tidyverse)
+```
+
+### About the data
+
+The data is every recorded shooting incident in New York City since 2006. It includes information about each shooting incident, including the date, time, and borough. My analysis will only focus on these bits of information, so they will be the only features displayed for the duration of the report. I decided to display the first few rows of the raw data so you can see what it looks like.
+
+I had difficulties acquiring the data directly from the source into this RMarkdown document, because the connection kept timing out after 60 seconds. In order to successfully run this file on your own computer, you will need to visit this [link](https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic) and download the data as a csv file named "nypd_data.csv". Make sure your current working directory in RStudio is pointed to the folder containing this csv file.
+
+```{r acquire}
+data <- read.csv("nypd_data.csv")
+head(data, n = c(5, 4))
+```
+
+
+### Data summary
+
+I will summarize the data to check for appropriate data types and irregularities. If I encounter strange or missing values, I will investigate them and determine how to handle them.
+
+```{r summary}
+summary(data[1:4])
+```
+
+### Cleaning up the data
+
+This dataset has a lot to offer for detailed analysis. The scope of this project asks for a couple visualizations and accompanying analysis. I will focus on the following attributes for my analysis: date, time of day, and borough. I will create a new dataframe that only contains the relevant columns. I noticed that OCCUR_DATE is currently a character field: I will recast it as a datetime object. I also noticed that OCCUR_TIME is currently a character field. I have plans to extract the first two characters as an "hour of the day" field and create three categories from the resulting information: morning, afternoon, and night.
+
+```{r new}
+subset <- data %>% select(OCCUR_DATE, OCCUR_TIME, BORO)
+subset <- subset %>% mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+subset$OCCUR_MONTH <- format(subset$OCCUR_DATE, "%m")
+subset$OCCUR_HOUR <- substr(subset$OCCUR_TIME, start=1, stop=2)
+subset <- transform(subset, OCCUR_HOUR = as.numeric(OCCUR_HOUR))
+subset <- subset %>% mutate(TIME_OF_DAY = case_when(
+  (OCCUR_HOUR > 4) & (OCCUR_HOUR < 12) ~ 'Morning',
+  (OCCUR_HOUR > 11) & (OCCUR_HOUR < 20) ~ 'Afternoon',
+  TRUE ~ 'Night'
+  )
+)
+subset <- subset %>% select(OCCUR_MONTH, TIME_OF_DAY, BORO)
+head(subset, n = 5)
+```
+
+### Analyzing my data
+
+Now that the data is ready to go, I have a few questions I will attempt to answer with the aid of some visualizations.
+
+#### Month
+
+Does the month of the year affect the number of shootings?
+
+```{r month}
+barplot(table(subset$OCCUR_MONTH), main="Shootings spike in summer", xlab="Month", ylab="Count")
+```
+
+Yes, the time of year appears to affect the number of shootings. There are more recorded shooting incidents in the summer months than there are in winter.
+
+#### Time of day
+
+Is there a time of day when most shootings occur? For reference, morning is from the hours 5-11am, afternoon is from 12-7pm, and night is from 8pm-4am.
+
+```{r time}
+barplot(table(subset$TIME_OF_DAY), main="Most shootings at night", xlab="Time of day", ylab="Count")
+```
+
+Over half of all shootings occur in the night category.
+
+#### Borough
+
+Are some boroughs of NYC more violent than others?
+
+```{r borough}
+barplot(table(subset$BORO), main="'B' boroughs have most shootings", ylab="Count", las=2)
+```
+
+Yes, the boroughs that begin with the letter B (Bronx and Brooklyn) have many more shooting incidents than the other boroughs.
+
+### Conclusion
+
+The dataset was acquired from data.gov, with information on every recorded shooting by the NYPD since 2006. This analysis focused on the following pieces of information: the month, the time, and the borough. The dataset was pared down to these features, and the features were encoded in a way that was conducive to analysis. After visualizing the data, it was clear that all three factors may be related to the likelihood of a shooting. We saw that most shootings happen in the summer, at night, and in the Bronx and Brooklyn boroughs.
+
+It's possible that other factors cause these shooting incidents to occur: the factors investigated today don't tell the full story. The only possible source of bias in my analysis that I can identify are the arbritrary cut-offs assigned for morning, afternoon, and night. These cut-offs were determined according to my interpretation, and other bins may result in a different analysis. The session info is posted below, to allow for reproducibility of this work.
+
+```{r dependencies}
+sessionInfo()
+```
